@@ -365,6 +365,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbyyQ-u_DHgUqx2BzjV15pzK
 // Create this in Google Cloud Console > APIs & Services > Credentials
 // (OAuth 2.0 Client ID, type "Web application"), and add your GitHub Pages
 // origin (e.g. https://joock3r.github.io) under "Authorized JavaScript origins".
+// Must be IDENTICAL to the GOOGLE_CLIENT_ID constant in Code.gs — the server
+// verifies every token was issued for this exact client.
 const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com";
 
 /* ============================================================
@@ -373,6 +375,7 @@ const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleuser
 let state = {
   isAdmin: false,
   userEmail: null,
+  idToken: null,
   students: [],
   expenses: [],
   payments: [],
@@ -380,29 +383,34 @@ let state = {
 };
 
 /* ============================================================
-   AUTH — Google Sign-In (Google Identity Services)
+   AUTH — Google Sign-In (Google Identity Services), matching the
+   same pattern used on Predicto: the client only ever DECODES the
+   token locally for display; the server (Code.gs) independently
+   RE-VERIFIES it against Google's tokeninfo endpoint before trusting
+   the identity for anything. See verifyIdToken() in Code.gs.
    ============================================================ */
-// Decodes the JWT credential Google returns; this is a display-only
-// decode on the client. The server independently re-checks the email
-// against ADMIN_EMAILS before allowing any write (see Code.gs).
-function decodeJwt_(token){
-  try{
-    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-    const json = decodeURIComponent(atob(base64).split('').map(c=>
-      '%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)
-    ).join(''));
-    return JSON.parse(json);
-  }catch(e){ return null; }
+function decodeJwtPayload(idToken){
+  try{ return JSON.parse(atob(idToken.split('.')[1].replace(/-/g,'+').replace(/_/g,'/'))); }catch(e){ return null; }
+}
+// ID tokens expire after ~1 hour. A stale cached one would make the server's
+// verification silently reject every write, so treat it as "signed out" up
+// front rather than sending a token we already know is dead.
+function isIdTokenExpired(idToken){
+  const payload = idToken && decodeJwtPayload(idToken);
+  return !payload || !payload.exp || (Date.now()/1000) >= (payload.exp - 30);
 }
 
 function handleGoogleCredential(response){
-  const payload = decodeJwt_(response.credential);
+  const payload = decodeJwtPayload(response.credential);
   if (!payload || !payload.email){
     showToast('שגיאה בזיהוי מול Google', true);
     return;
   }
-  localStorage.setItem('user_email', payload.email.toLowerCase());
+  state.userEmail = payload.email.toLowerCase();
+  state.idToken = response.credential;
+  localStorage.setItem('user_email', state.userEmail);
   localStorage.setItem('user_name', payload.name || '');
+  localStorage.setItem('user_id_token', state.idToken);
   applyAuthState();
   renderAll();
   showToast(state.isAdmin ? 'התחברת בהצלחה במצב מנהל' : 'התחברת בהצלחה במצב צפייה');
@@ -410,8 +418,7 @@ function handleGoogleCredential(response){
 
 function initGoogleSignIn(){
   if (typeof google === 'undefined' || !google.accounts){
-    // GIS script not loaded yet — retry shortly
-    setTimeout(initGoogleSignIn, 300);
+    setTimeout(initGoogleSignIn, 300); // GIS script not loaded yet — retry shortly
     return;
   }
   google.accounts.id.initialize({
@@ -419,19 +426,37 @@ function initGoogleSignIn(){
     callback: handleGoogleCredential,
     auto_select: false
   });
-  google.accounts.id.renderButton(
-    document.getElementById('googleSignInBtn'),
+  renderGoogleButton();
+}
+
+function renderGoogleButton(){
+  if (typeof google === 'undefined' || !google.accounts) return;
+  const wrap = document.getElementById('googleSignInBtn');
+  wrap.innerHTML = '';
+  google.accounts.id.renderButton(wrap,
     { theme: 'outline', size: 'medium', type: 'standard', shape: 'pill', text: 'signin_with', locale: 'iw' }
   );
 }
 
-function resolveUserEmail(){
-  const stored = localStorage.getItem('user_email');
-  return stored ? stored.trim().toLowerCase() : null;
+function resolveStoredSession(){
+  const email = localStorage.getItem('user_email');
+  const idToken = localStorage.getItem('user_id_token');
+  if (!email || !idToken || isIdTokenExpired(idToken)) return null;
+  return { email: email.trim().toLowerCase(), idToken };
 }
 
 function applyAuthState(){
-  state.userEmail = resolveUserEmail();
+  const session = state.idToken ? { email: state.userEmail, idToken: state.idToken } : resolveStoredSession();
+  if (session){
+    state.userEmail = session.email;
+    state.idToken = session.idToken;
+  } else {
+    state.userEmail = null;
+    state.idToken = null;
+  }
+  // isAdmin here only drives which UI controls are OFFERED — it is never
+  // trusted for the actual write. Code.gs independently re-verifies the
+  // idToken and re-checks ADMIN_EMAILS itself before allowing any change.
   state.isAdmin = !!(state.userEmail && ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(state.userEmail));
 
   const chip = document.getElementById('userChip');
@@ -448,11 +473,26 @@ function applyAuthState(){
 
   document.getElementById('googleSignInBtn').style.display = state.userEmail ? 'none' : 'inline-block';
   document.getElementById('logoutBtn').style.display = state.userEmail ? 'inline-flex' : 'none';
+  if (!state.userEmail) renderGoogleButton();
+}
+
+/** Bails out of a write before any optimistic UI change if there's no
+ *  signed-in session or the token has gone stale — mirrors Predicto's
+ *  requireFreshSession(), so a dead token never gets silently rejected
+ *  server-side with no explanation shown to the user. */
+function requireFreshSession(){
+  const session = resolveStoredSession();
+  if (!session){ applyAuthState(); return false; }
+  state.userEmail = session.email;
+  state.idToken = session.idToken;
+  return true;
 }
 
 document.getElementById('logoutBtn').addEventListener('click', ()=>{
   localStorage.removeItem('user_email');
   localStorage.removeItem('user_name');
+  localStorage.removeItem('user_id_token');
+  state.userEmail = null; state.idToken = null;
   if (typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
   applyAuthState();
   renderAll();
@@ -483,10 +523,14 @@ async function apiGet(){
 }
 
 async function apiPost(payload){
+  // idToken lets Code.gs independently verify who's really calling — the
+  // server never trusts a plain email field on its own (see verifyIdToken
+  // in Code.gs). email is still included for convenience/logging only.
+  const withAuth = { ...payload, idToken: state.idToken || '' };
   const res = await fetch(API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(payload)
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // keeps this a CORS "simple request" — no preflight, which Apps Script can't answer
+    body: JSON.stringify(withAuth)
   });
   if(!res.ok) throw new Error('שגיאת רשת בשמירת הנתונים');
   return res.json();
@@ -685,6 +729,7 @@ function openQuickPayment(idx){
    ============================================================ */
 document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
   if(!state.isAdmin) return;
+  if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   const desc = document.getElementById('exDesc').value.trim();
   const amount = parseFloat(document.getElementById('exAmount').value);
   const date = document.getElementById('exDate').value;
@@ -705,6 +750,7 @@ document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
 
 document.getElementById('savePaymentBtn').addEventListener('click', async ()=>{
   if(!state.isAdmin) return;
+  if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   const studentName = document.getElementById('payStudent').value;
   const amount = parseFloat(document.getElementById('payAmount').value);
   const date = document.getElementById('payDate').value;
@@ -726,6 +772,7 @@ document.getElementById('savePaymentBtn').addEventListener('click', async ()=>{
 
 async function deleteExpense(idx){
   if(!state.isAdmin) return;
+  if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   if(!confirm('למחוק את ההוצאה?')) return;
   const exp = state.expenses[idx];
   showLoader('מוחק...');
@@ -763,7 +810,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
 /* ============================================================
    INIT
    ============================================================ */
-applyAuthState();
+applyAuthState(); // restores a still-valid session from localStorage, if any
 initGoogleSignIn();
 loadAllData();
 </script>
