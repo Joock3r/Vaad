@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ועד כיתה א'2 - ניהול תקציב וגבייה</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f8fafc;
+    --card:#ffffff;
+    --border:#e2e8f0;
+    --text:#0f172a;
+    --text-muted:#64748b;
+    --accent:#4f46e5;
+    --accent-soft:#eef2ff;
+    --income:#16a34a;
+    --income-soft:#f0fdf4;
+    --expense:#e11d48;
+    --expense-soft:#fff1f2;
+    --warn:#d97706;
+    --warn-soft:#fffbeb;
+    --radius:14px;
+    --shadow: 0 1px 2px rgba(15,23,42,.04), 0 4px 16px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Heebo',-apple-system,'Segoe UI',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .num, .mono{font-family:'Space Mono',monospace;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  .container{max-width:1100px;margin:0 auto;padding:16px;}
+
+  /* ---------- Header ---------- */
+  header.app-header{
+    background:var(--card);
+    border-bottom:1px solid var(--border);
+    position:sticky;top:0;z-index:20;
+  }
+  .header-inner{
+    max-width:1100px;margin:0 auto;padding:14px 16px;
+    display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  }
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand h1{font-size:18px;margin:0;font-weight:800;}
+  .user-chip{
+    display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);
+  }
+  .badge{
+    font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;
+  }
+  .badge.admin{background:var(--accent-soft);color:var(--accent);}
+  .badge.view{background:#f1f5f9;color:var(--text-muted);}
+  .header-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .btn{
+    border:none;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:600;
+    display:inline-flex;align-items:center;gap:6px;transition:transform .1s, background .15s;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-primary:hover{background:#4338ca;}
+  .btn-outline{background:#fff;color:var(--text);border:1px solid var(--border);}
+  .btn-outline:hover{background:#f8fafc;}
+  .btn-ghost{background:transparent;color:var(--text-muted);}
+  .btn-sm{padding:6px 10px;font-size:12px;}
+  .btn-danger-ghost{background:transparent;color:var(--expense);}
+
+  .readonly-banner{
+    background:var(--warn-soft);color:#92400e;border-bottom:1px solid #fde68a;
+    text-align:center;font-size:13px;font-weight:600;padding:8px 12px;
+  }
+
+  /* ---------- KPI Cards ---------- */
+  .kpi-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0;
+  }
+  @media (max-width:800px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  .kpi-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:16px;box-shadow:var(--shadow);
+  }
+  .kpi-label{font-size:12px;color:var(--text-muted);font-weight:600;margin-bottom:6px;}
+  .kpi-value{font-size:24px;font-weight:800;font-family:'Space Mono',monospace;}
+  .kpi-sub{font-size:11px;color:var(--text-muted);margin-top:4px;}
+  .kpi-balance .kpi-value{color:var(--accent);}
+  .kpi-income .kpi-value{color:var(--income);}
+  .kpi-expense .kpi-value{color:var(--expense);}
+  .kpi-debt .kpi-value{color:var(--warn);}
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:14px;}
+  .tab-btn{
+    flex:1;border:none;background:transparent;padding:10px 8px;border-radius:9px;
+    font-size:13px;font-weight:700;color:var(--text-muted);
+  }
+  .tab-btn.active{background:var(--accent);color:#fff;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;animation:fadeIn .2s ease;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .panel-card{
+    background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .panel-toolbar{
+    display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:14px 16px;border-bottom:1px solid var(--border);
+  }
+  .filter-group{display:flex;gap:6px;}
+  .filter-chip{
+    border:1px solid var(--border);background:#fff;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:600;color:var(--text-muted);
+  }
+  .filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* ---------- Tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{
+    text-align:right;padding:10px 14px;font-size:11px;color:var(--text-muted);
+    font-weight:700;border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  tbody td{padding:11px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafbff;}
+  .cell-amount{font-family:'Space Mono',monospace;font-weight:700;}
+  .status-pill{
+    display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;
+  }
+  .status-paid{background:var(--income-soft);color:var(--income);}
+  .status-partial{background:var(--warn-soft);color:var(--warn);}
+  .status-unpaid{background:var(--expense-soft);color:var(--expense);}
+  .row-actions{display:flex;gap:6px;justify-content:flex-end;}
+  .icon-btn{
+    border:none;background:#f1f5f9;color:var(--text-muted);width:28px;height:28px;border-radius:8px;
+    display:inline-flex;align-items:center;justify-content:center;
+  }
+  .icon-btn:hover{background:#e2e8f0;}
+  .icon-btn.danger:hover{background:var(--expense-soft);color:var(--expense);}
+  .empty-state{padding:40px 16px;text-align:center;color:var(--text-muted);font-size:13px;}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;
+    align-items:center;justify-content:center;z-index:100;padding:16px;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:#fff;border-radius:16px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.25);
+    max-height:90vh;overflow-y:auto;
+  }
+  .modal-head{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--border);}
+  .modal-head h3{margin:0;font-size:16px;}
+  .modal-body{padding:16px 18px;display:flex;flex-direction:column;gap:12px;}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--text-muted);margin-bottom:5px;}
+  .field input, .field select{
+    width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;
+    font-family:inherit;background:#f8fafc;
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--accent);outline-offset:1px;background:#fff;}
+  .checkbox-field{display:flex;align-items:center;gap:8px;}
+  .modal-foot{display:flex;gap:8px;justify-content:flex-end;padding:14px 18px;border-top:1px solid var(--border);}
+
+  /* ---------- Loader ---------- */
+  .loader-overlay{
+    position:fixed;inset:0;background:rgba(248,250,252,.75);display:none;
+    align-items:center;justify-content:center;z-index:200;flex-direction:column;gap:10px;
+  }
+  .loader-overlay.open{display:flex;}
+  .spinner{
+    width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);
+    border-radius:50%;animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loader-text{font-size:12px;color:var(--text-muted);font-weight:600;}
+
+  .toast{
+    position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(10px);
+    background:#0f172a;color:#fff;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;
+    box-shadow:var(--shadow);z-index:300;opacity:0;pointer-events:none;transition:all .25s ease;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast.error{background:var(--expense);}
+
+  footer.print-only{display:none;}
+
+  @media print{
+    header.app-header, .tabs, .panel-toolbar .filter-group, .header-actions, .row-actions, .readonly-banner{display:none !important;}
+    body{background:#fff;}
+    .kpi-grid{grid-template-columns:repeat(4,1fr);}
+    .tab-panel{display:block !important;margin-bottom:24px;}
+    .panel-card{box-shadow:none;border:1px solid #ccc;break-inside:avoid;}
+    footer.print-only{display:block;text-align:center;font-size:11px;color:#666;margin-top:20px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="brand">
+      <h1>ועד כיתה א'2</h1>
+      <span class="user-chip" id="userChip">טוען משתמש...</span>
+    </div>
+    <div class="header-actions">
+      <div id="googleSignInBtn"></div>
+      <button class="btn btn-outline admin-only" id="logoutBtn" style="display:none;">התנתקות</button>
+      <button class="btn btn-outline" id="exportPdfBtn">📄 ייצוא לדוח PDF</button>
+      <button class="btn btn-primary admin-only" id="addExpenseBtn" style="display:none;">+ הוצאה</button>
+      <button class="btn btn-primary admin-only" id="addPaymentBtn" style="display:none;">+ תשלום</button>
+    </div>
+  </div>
+  <div class="readonly-banner" id="readonlyBanner" style="display:none;">מצב צפייה להורי הכיתה (קריאה בלבד)</div>
+</header>
+
+<div class="container">
+
+  <section class="kpi-grid">
+    <div class="kpi-card kpi-balance">
+      <div class="kpi-label">יתרה נוכחית בקופה</div>
+      <div class="kpi-value num" id="kpiBalance">₪0</div>
+    </div>
+    <div class="kpi-card kpi-income">
+      <div class="kpi-label">סך הכל נגבה מהורים</div>
+      <div class="kpi-value num" id="kpiIncome">₪0</div>
+      <div class="kpi-sub" id="kpiIncomePct">0% מהיעד</div>
+    </div>
+    <div class="kpi-card kpi-expense">
+      <div class="kpi-label">סך כל ההוצאות</div>
+      <div class="kpi-value num" id="kpiExpense">₪0</div>
+    </div>
+    <div class="kpi-card kpi-debt">
+      <div class="kpi-label">יתרת חוב כוללת</div>
+      <div class="kpi-value num" id="kpiDebt">₪0</div>
+    </div>
+  </section>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="students">מעקב גבייה</button>
+    <button class="tab-btn" data-tab="expenses">יומן הוצאות</button>
+    <button class="tab-btn" data-tab="payments">יומן תשלומים</button>
+  </nav>
+
+  <!-- Students tab -->
+  <section class="tab-panel active" id="tab-students">
+    <div class="panel-card">
+      <div class="panel-toolbar">
+        <div class="filter-group" id="studentFilterGroup">
+          <button class="filter-chip active" data-filter="all">הכל</button>
+          <button class="filter-chip" data-filter="unpaid">טרם שילמו</button>
+          <button class="filter-chip" data-filter="paid">שילמו</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>שם תלמיד</th><th>יעד תשלום</th><th>שולם בפועל</th><th>סטטוס</th><th class="admin-only" style="display:none;"></th>
+          </tr></thead>
+          <tbody id="studentsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="studentsEmpty" style="display:none;">אין נתוני תלמידים להצגה</div>
+    </div>
+  </section>
+
+  <!-- Expenses tab -->
+  <section class="tab-panel" id="tab-expenses">
+    <div class="panel-card">
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>שולם ע"י</th><th class="admin-only" style="display:none;"></th>
+          </tr></thead>
+          <tbody id="expensesBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="expensesEmpty" style="display:none;">אין הוצאות רשומות</div>
+    </div>
+  </section>
+
+  <!-- Payments tab -->
+  <section class="tab-panel" id="tab-payments">
+    <div class="panel-card">
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>תאריך</th><th>משלם</th><th>סכום</th><th>אמצעי תשלום</th><th>הערות</th>
+          </tr></thead>
+          <tbody id="paymentsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="paymentsEmpty" style="display:none;">אין תשלומים רשומים</div>
+    </div>
+  </section>
+
+  <footer class="print-only">דוח נוצר אוטומטית ע"י מערכת ניהול ועד כיתה א'2 · <span id="printDate"></span></footer>
+</div>
+
+<!-- Add Expense Modal -->
+<div class="modal-overlay" id="expenseModal">
+  <div class="modal">
+    <div class="modal-head"><h3>הוספת הוצאה</h3><button class="icon-btn" data-close="expenseModal">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>תיאור</label><input type="text" id="exDesc" placeholder="לדוגמה: מתנת סיום שנה"></div>
+      <div class="field"><label>סכום (ש"ח)</label><input type="number" id="exAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>תאריך</label><input type="date" id="exDate"></div>
+      <div class="field"><label>קטגוריה</label>
+        <select id="exCategory">
+          <option>מתנות לצוות</option><option>אירועים</option><option>כיבוד</option><option>ציוד</option><option>אחר</option>
+        </select>
+      </div>
+      <div class="field"><label>שולם על ידי</label><input type="text" id="exPaidBy" placeholder="שם"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-close="expenseModal">ביטול</button>
+      <button class="btn btn-primary" id="saveExpenseBtn">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Payment Modal -->
+<div class="modal-overlay" id="paymentModal">
+  <div class="modal">
+    <div class="modal-head"><h3>הוספת תשלום תלמיד</h3><button class="icon-btn" data-close="paymentModal">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>שם תלמיד</label><select id="payStudent"></select></div>
+      <div class="field"><label>סכום ששולם</label><input type="number" id="payAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>תאריך</label><input type="date" id="payDate"></div>
+      <div class="field"><label>אמצעי תשלום</label>
+        <select id="payMethod"><option>Bit</option><option>PayBox</option><option>העברה בנקאית</option><option>מזומן</option></select>
+      </div>
+      <div class="field"><label>הערות</label><input type="text" id="payNotes" placeholder="אופציונלי"></div>
+      <div class="checkbox-field"><input type="checkbox" id="payCoversAll"><label for="payCoversAll" style="margin:0;">התשלום מכסה את כל החוב</label></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-close="paymentModal">ביטול</button>
+      <button class="btn btn-primary" id="savePaymentBtn">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<div class="loader-overlay" id="loaderOverlay">
+  <div class="spinner"></div>
+  <div class="loader-text" id="loaderText">טוען נתונים...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script>
+/* ============================================================
+   CONFIG — edit these constants for your deployment
+   ============================================================ */
+const ADMIN_EMAILS = [
+  "tamir.tsricker@gmail.com",
+  "nut.cr4ck3r.pro@gmail.com"
+];
+const API_URL = "https://script.google.com/macros/s/AKfycbyyQ-u_DHgUqx2BzjV15pzKn25n-AjXVFm7mlem8SRyr4LCposxnIYYQNaevFXbyOZquw/exec";
+
+// Create this in Google Cloud Console > APIs & Services > Credentials
+// (OAuth 2.0 Client ID, type "Web application"), and add your GitHub Pages
+// origin (e.g. https://joock3r.github.io) under "Authorized JavaScript origins".
+const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com";
+
+/* ============================================================
+   STATE
+   ============================================================ */
+let state = {
+  isAdmin: false,
+  userEmail: null,
+  students: [],
+  expenses: [],
+  payments: [],
+  studentFilter: 'all'
+};
+
+/* ============================================================
+   AUTH — Google Sign-In (Google Identity Services)
+   ============================================================ */
+// Decodes the JWT credential Google returns; this is a display-only
+// decode on the client. The server independently re-checks the email
+// against ADMIN_EMAILS before allowing any write (see Code.gs).
+function decodeJwt_(token){
+  try{
+    const base64 = token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json = decodeURIComponent(atob(base64).split('').map(c=>
+      '%' + ('00'+c.charCodeAt(0).toString(16)).slice(-2)
+    ).join(''));
+    return JSON.parse(json);
+  }catch(e){ return null; }
+}
+
+function handleGoogleCredential(response){
+  const payload = decodeJwt_(response.credential);
+  if (!payload || !payload.email){
+    showToast('שגיאה בזיהוי מול Google', true);
+    return;
+  }
+  localStorage.setItem('user_email', payload.email.toLowerCase());
+  localStorage.setItem('user_name', payload.name || '');
+  applyAuthState();
+  renderAll();
+  showToast(state.isAdmin ? 'התחברת בהצלחה במצב מנהל' : 'התחברת בהצלחה במצב צפייה');
+}
+
+function initGoogleSignIn(){
+  if (typeof google === 'undefined' || !google.accounts){
+    // GIS script not loaded yet — retry shortly
+    setTimeout(initGoogleSignIn, 300);
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false
+  });
+  google.accounts.id.renderButton(
+    document.getElementById('googleSignInBtn'),
+    { theme: 'outline', size: 'medium', type: 'standard', shape: 'pill', text: 'signin_with', locale: 'iw' }
+  );
+}
+
+function resolveUserEmail(){
+  const stored = localStorage.getItem('user_email');
+  return stored ? stored.trim().toLowerCase() : null;
+}
+
+function applyAuthState(){
+  state.userEmail = resolveUserEmail();
+  state.isAdmin = !!(state.userEmail && ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(state.userEmail));
+
+  const chip = document.getElementById('userChip');
+  const name = localStorage.getItem('user_name');
+  const badgeHtml = state.isAdmin
+    ? `<span class="badge admin">מנהל</span>`
+    : `<span class="badge view">צפייה בלבד</span>`;
+  chip.innerHTML = state.userEmail ? ((name||state.userEmail) + ' ' + badgeHtml) : 'לא מחובר';
+
+  document.getElementById('readonlyBanner').style.display = state.isAdmin ? 'none' : 'block';
+  document.querySelectorAll('.admin-only').forEach(el=>{
+    el.style.display = state.isAdmin ? '' : 'none';
+  });
+
+  document.getElementById('googleSignInBtn').style.display = state.userEmail ? 'none' : 'inline-block';
+  document.getElementById('logoutBtn').style.display = state.userEmail ? 'inline-flex' : 'none';
+}
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  localStorage.removeItem('user_email');
+  localStorage.removeItem('user_name');
+  if (typeof google !== 'undefined' && google.accounts) google.accounts.id.disableAutoSelect();
+  applyAuthState();
+  renderAll();
+  showToast('התנתקת');
+});
+
+/* ============================================================
+   API LAYER
+   ============================================================ */
+function showLoader(text){
+  document.getElementById('loaderText').textContent = text || 'טוען נתונים...';
+  document.getElementById('loaderOverlay').classList.add('open');
+}
+function hideLoader(){
+  document.getElementById('loaderOverlay').classList.remove('open');
+}
+function showToast(msg, isError){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(()=>{ t.className = 'toast'; }, 2800);
+}
+
+async function apiGet(){
+  const res = await fetch(API_URL + '?action=getAll');
+  if(!res.ok) throw new Error('שגיאת רשת בטעינת הנתונים');
+  return res.json();
+}
+
+async function apiPost(payload){
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error('שגיאת רשת בשמירת הנתונים');
+  return res.json();
+}
+
+async function loadAllData(){
+  showLoader('טוען נתונים...');
+  try{
+    const data = await apiGet();
+    state.students = data.students || [];
+    state.expenses = data.expenses || [];
+    state.payments = data.payments || [];
+    renderAll();
+  }catch(err){
+    console.error(err);
+    showToast('שגיאה בטעינת הנתונים מהשרת', true);
+  }finally{
+    hideLoader();
+  }
+}
+
+/* ============================================================
+   DERIVED / FORMATTING
+   ============================================================ */
+const fmt = n => '₪' + Number(n||0).toLocaleString('he-IL', {maximumFractionDigits:2});
+
+function studentStatus(s){
+  const paid = Number(s.paid||0), target = Number(s.target||0);
+  if (paid <= 0) return 'unpaid';
+  if (paid >= target) return 'paid';
+  return 'partial';
+}
+function statusLabel(st){
+  return {paid:'שולם', partial:'שולם חלקית', unpaid:'לא שולם'}[st];
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function renderKpis(){
+  const totalIncome = state.payments.reduce((a,p)=>a+Number(p.amount||0),0);
+  const totalExpense = state.expenses.reduce((a,e)=>a+Number(e.amount||0),0);
+  const totalTarget = state.students.reduce((a,s)=>a+Number(s.target||0),0);
+  const totalCollectedFromStudents = state.students.reduce((a,s)=>a+Number(s.paid||0),0);
+  const debt = Math.max(0, totalTarget - totalCollectedFromStudents);
+  const balance = totalIncome - totalExpense;
+
+  document.getElementById('kpiBalance').textContent = fmt(balance);
+  document.getElementById('kpiIncome').textContent = fmt(totalIncome);
+  document.getElementById('kpiExpense').textContent = fmt(totalExpense);
+  document.getElementById('kpiDebt').textContent = fmt(debt);
+  const pct = totalTarget > 0 ? Math.round((totalCollectedFromStudents/totalTarget)*100) : 0;
+  document.getElementById('kpiIncomePct').textContent = pct + '% מהיעד';
+}
+
+function renderStudents(){
+  const body = document.getElementById('studentsBody');
+  let rows = state.students.map((s,i)=>({...s, _idx:i, _status: studentStatus(s)}));
+  if (state.studentFilter === 'unpaid') rows = rows.filter(r=>r._status!=='paid');
+  if (state.studentFilter === 'paid') rows = rows.filter(r=>r._status==='paid');
+
+  document.getElementById('studentsEmpty').style.display = rows.length ? 'none' : 'block';
+  body.innerHTML = rows.map(r=>`
+    <tr>
+      <td>${escapeHtml(r.name)}</td>
+      <td class="cell-amount">${fmt(r.target)}</td>
+      <td class="cell-amount">${fmt(r.paid)}</td>
+      <td><span class="status-pill status-${r._status}">${statusLabel(r._status)}</span></td>
+      <td class="admin-only" style="display:${state.isAdmin?'table-cell':'none'};text-align:left;">
+        <div class="row-actions">
+          <button class="icon-btn" title="עדכון תשלום" onclick="openQuickPayment(${r._idx})">💳</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderExpenses(){
+  const body = document.getElementById('expensesBody');
+  document.getElementById('expensesEmpty').style.display = state.expenses.length ? 'none' : 'block';
+  body.innerHTML = state.expenses.map((e,i)=>`
+    <tr>
+      <td class="num">${e.date||''}</td>
+      <td>${escapeHtml(e.description)}</td>
+      <td>${escapeHtml(e.category)}</td>
+      <td class="cell-amount" style="color:var(--expense);">${fmt(e.amount)}</td>
+      <td>${escapeHtml(e.paidBy||'')}</td>
+      <td class="admin-only" style="display:${state.isAdmin?'table-cell':'none'};text-align:left;">
+        <div class="row-actions">
+          <button class="icon-btn danger" title="מחיקה" onclick="deleteExpense(${i})">🗑</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function renderPayments(){
+  const body = document.getElementById('paymentsBody');
+  document.getElementById('paymentsEmpty').style.display = state.payments.length ? 'none' : 'block';
+  body.innerHTML = state.payments.map(p=>`
+    <tr>
+      <td class="num">${p.date||''}</td>
+      <td>${escapeHtml(p.payerName)}</td>
+      <td class="cell-amount" style="color:var(--income);">${fmt(p.amount)}</td>
+      <td>${escapeHtml(p.method||'')}</td>
+      <td>${escapeHtml(p.notes||'')}</td>
+    </tr>
+  `).join('');
+}
+
+function renderAll(){
+  renderKpis();
+  renderStudents();
+  renderExpenses();
+  renderPayments();
+  populateStudentDropdown();
+}
+
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+document.getElementById('studentFilterGroup').addEventListener('click', (e)=>{
+  const chip = e.target.closest('.filter-chip');
+  if(!chip) return;
+  document.querySelectorAll('#studentFilterGroup .filter-chip').forEach(c=>c.classList.remove('active'));
+  chip.classList.add('active');
+  state.studentFilter = chip.dataset.filter;
+  renderStudents();
+});
+
+/* ============================================================
+   MODALS
+   ============================================================ */
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('[data-close]').forEach(el=>{
+  el.addEventListener('click', ()=>closeModal(el.dataset.close));
+});
+document.querySelectorAll('.modal-overlay').forEach(ov=>{
+  ov.addEventListener('click', (e)=>{ if(e.target===ov) ov.classList.remove('open'); });
+});
+
+document.getElementById('addExpenseBtn').addEventListener('click', ()=>{
+  if(!state.isAdmin) return;
+  document.getElementById('exDesc').value='';
+  document.getElementById('exAmount').value='';
+  document.getElementById('exDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('exCategory').value='מתנות לצוות';
+  document.getElementById('exPaidBy').value='';
+  openModal('expenseModal');
+});
+
+document.getElementById('addPaymentBtn').addEventListener('click', ()=>{
+  if(!state.isAdmin) return;
+  document.getElementById('payAmount').value='';
+  document.getElementById('payDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('payMethod').value='Bit';
+  document.getElementById('payNotes').value='';
+  document.getElementById('payCoversAll').checked=false;
+  openModal('paymentModal');
+});
+
+function populateStudentDropdown(){
+  const sel = document.getElementById('payStudent');
+  sel.innerHTML = state.students.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+}
+
+function openQuickPayment(idx){
+  if(!state.isAdmin) return;
+  const s = state.students[idx];
+  document.getElementById('payAmount').value='';
+  document.getElementById('payDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('payMethod').value='Bit';
+  document.getElementById('payNotes').value='';
+  document.getElementById('payCoversAll').checked=false;
+  populateStudentDropdown();
+  document.getElementById('payStudent').value = s.name;
+  openModal('paymentModal');
+}
+
+/* ============================================================
+   SAVE / DELETE (admin only — guarded client + server side)
+   ============================================================ */
+document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
+  if(!state.isAdmin) return;
+  const desc = document.getElementById('exDesc').value.trim();
+  const amount = parseFloat(document.getElementById('exAmount').value);
+  const date = document.getElementById('exDate').value;
+  const category = document.getElementById('exCategory').value;
+  const paidBy = document.getElementById('exPaidBy').value.trim();
+  if(!desc || !amount || !date){ showToast('נא למלא את כל שדות החובה', true); return; }
+
+  showLoader('שומר הוצאה...');
+  try{
+    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy });
+    closeModal('expenseModal');
+    await loadAllData();
+    showToast('ההוצאה נשמרה בהצלחה');
+  }catch(err){
+    console.error(err); showToast('שגיאה בשמירת ההוצאה', true);
+  }finally{ hideLoader(); }
+});
+
+document.getElementById('savePaymentBtn').addEventListener('click', async ()=>{
+  if(!state.isAdmin) return;
+  const studentName = document.getElementById('payStudent').value;
+  const amount = parseFloat(document.getElementById('payAmount').value);
+  const date = document.getElementById('payDate').value;
+  const method = document.getElementById('payMethod').value;
+  const notes = document.getElementById('payNotes').value.trim();
+  const coversAll = document.getElementById('payCoversAll').checked;
+  if(!studentName || !amount || !date){ showToast('נא למלא את כל שדות החובה', true); return; }
+
+  showLoader('שומר תשלום...');
+  try{
+    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, coversAll });
+    closeModal('paymentModal');
+    await loadAllData();
+    showToast('התשלום נשמר בהצלחה');
+  }catch(err){
+    console.error(err); showToast('שגיאה בשמירת התשלום', true);
+  }finally{ hideLoader(); }
+});
+
+async function deleteExpense(idx){
+  if(!state.isAdmin) return;
+  if(!confirm('למחוק את ההוצאה?')) return;
+  const exp = state.expenses[idx];
+  showLoader('מוחק...');
+  try{
+    await apiPost({ action:'deleteExpense', email: state.userEmail, id: exp.id });
+    await loadAllData();
+    showToast('ההוצאה נמחקה');
+  }catch(err){
+    console.error(err); showToast('שגיאה במחיקה', true);
+  }finally{ hideLoader(); }
+}
+
+/* ============================================================
+   PDF EXPORT
+   ============================================================ */
+document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
+  document.getElementById('printDate').textContent = new Date().toLocaleDateString('he-IL');
+  const opt = {
+    margin: 0.4,
+    filename: 'דוח-ועד-כיתה-א2.pdf',
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+  };
+  // Temporarily show all tab panels for full report capture
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('active'));
+  html2pdf().set(opt).from(document.querySelector('.container')).save().then(()=>{
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('tab-students').classList.add('active');
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelector('.tab-btn[data-tab="students"]').classList.add('active');
+  });
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+applyAuthState();
+initGoogleSignIn();
+loadAllData();
+</script>
+</body>
+</html>
