@@ -78,9 +78,9 @@
 
   /* ---------- KPI Cards ---------- */
   .kpi-grid{
-    display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0;
+    display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0;
   }
-  @media (max-width:800px){.kpi-grid{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:800px){.kpi-grid{grid-template-columns:repeat(1,1fr);}}
   .kpi-card{
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
     padding:16px;box-shadow:var(--shadow);
@@ -91,7 +91,6 @@
   .kpi-balance .kpi-value{color:var(--accent);}
   .kpi-income .kpi-value{color:var(--income);}
   .kpi-expense .kpi-value{color:var(--expense);}
-  .kpi-debt .kpi-value{color:var(--warn);}
 
   /* ---------- Tabs ---------- */
   .tabs{display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:4px;margin-bottom:14px;}
@@ -191,7 +190,7 @@
   @media print{
     header.app-header, .tabs, .panel-toolbar .filter-group, .header-actions, .row-actions, .readonly-banner{display:none !important;}
     body{background:#fff;}
-    .kpi-grid{grid-template-columns:repeat(4,1fr);}
+    .kpi-grid{grid-template-columns:repeat(3,1fr);}
     .tab-panel{display:block !important;margin-bottom:24px;}
     .panel-card{box-shadow:none;border:1px solid #ccc;break-inside:avoid;}
     footer.print-only{display:block;text-align:center;font-size:11px;color:#666;margin-top:20px;}
@@ -233,16 +232,13 @@
       <div class="kpi-label">סך כל ההוצאות</div>
       <div class="kpi-value num" id="kpiExpense">₪0</div>
     </div>
-    <div class="kpi-card kpi-debt">
-      <div class="kpi-label">יתרת חוב כוללת</div>
-      <div class="kpi-value num" id="kpiDebt">₪0</div>
-    </div>
   </section>
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="students">מעקב גבייה</button>
     <button class="tab-btn" data-tab="expenses">יומן הוצאות</button>
     <button class="tab-btn" data-tab="payments">יומן תשלומים</button>
+    <button class="tab-btn" data-tab="planning">תכנון עתידי</button>
   </nav>
 
   <!-- Students tab -->
@@ -273,7 +269,7 @@
       <div style="overflow-x:auto;">
         <table>
           <thead><tr>
-            <th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>שולם ע"י</th><th class="admin-only" style="display:none;"></th>
+            <th>תאריך</th><th>תיאור</th><th>קטגוריה</th><th>סכום</th><th>שולם ע"י</th><th>קבלה</th><th class="admin-only" style="display:none;"></th>
           </tr></thead>
           <tbody id="expensesBody"></tbody>
         </table>
@@ -297,7 +293,62 @@
     </div>
   </section>
 
+  <!-- Planning tab -->
+  <section class="tab-panel" id="tab-planning">
+    <section class="kpi-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px;">
+      <div class="kpi-card kpi-balance">
+        <div class="kpi-label">יתרה נוכחית בקופה</div>
+        <div class="kpi-value num" id="planBalance">₪0</div>
+      </div>
+      <div class="kpi-card kpi-expense">
+        <div class="kpi-label">סך כל התכנון העתידי</div>
+        <div class="kpi-value num" id="planTotal">₪0</div>
+      </div>
+      <div class="kpi-card" id="planDiffCard">
+        <div class="kpi-label">יתרה אחרי כל התכנון</div>
+        <div class="kpi-value num" id="planDiff">₪0</div>
+      </div>
+    </section>
+    <div class="panel-card">
+      <div class="panel-toolbar">
+        <div class="kpi-sub" style="margin:0;">חגים, ימי כיף, מתנות סוף שנה ועוד — לתכנן מראש כמה כסף כל פעילות תדרוש</div>
+        <button class="btn btn-primary admin-only" id="addPlanBtn" style="display:none;">+ הוספת תכנון</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>כותרת</th><th>קטגוריה</th><th>סכום משוער</th><th>תקופה משוערת</th><th>הערות</th><th class="admin-only" style="display:none;"></th>
+          </tr></thead>
+          <tbody id="planningBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="planningEmpty" style="display:none;">אין עדיין תכנון עתידי</div>
+    </div>
+  </section>
+
   <footer class="print-only">דוח נוצר אוטומטית ע"י מערכת ניהול ועד כיתה א'2 · <span id="printDate"></span></footer>
+</div>
+
+<!-- Add Plan Modal -->
+<div class="modal-overlay" id="planModal">
+  <div class="modal">
+    <div class="modal-head"><h3>הוספת תכנון עתידי</h3><button class="icon-btn" data-close="planModal">✕</button></div>
+    <div class="modal-body">
+      <div class="field"><label>כותרת</label><input type="text" id="plTitle" placeholder="לדוגמה: מסיבת חנוכה"></div>
+      <div class="field"><label>סכום משוער (ש"ח)</label><input type="number" id="plAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>קטגוריה</label>
+        <select id="plCategory">
+          <option>חג / אירוע</option><option>יום כיף</option><option>מתנת סוף שנה</option><option>ציוד</option><option>אחר</option>
+        </select>
+      </div>
+      <div class="field"><label>תקופה משוערת</label><input type="text" id="plPeriod" placeholder="לדוגמה: דצמבר 2026"></div>
+      <div class="field"><label>הערות</label><input type="text" id="plNotes" placeholder="אופציונלי"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" data-close="planModal">ביטול</button>
+      <button class="btn btn-primary" id="savePlanBtn">שמירה</button>
+    </div>
+  </div>
 </div>
 
 <!-- Add Expense Modal -->
@@ -314,6 +365,11 @@
         </select>
       </div>
       <div class="field"><label>שולם על ידי</label><input type="text" id="exPaidBy" placeholder="שם"></div>
+      <div class="field">
+        <label>קבלה (תמונה) — אופציונלי</label>
+        <input type="file" id="exReceipt" accept="image/*">
+        <div class="kpi-sub" id="exReceiptName" style="margin-top:4px;"></div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" data-close="expenseModal">ביטול</button>
@@ -379,6 +435,7 @@ let state = {
   students: [],
   expenses: [],
   payments: [],
+  futurePlans: [],
   studentFilter: 'all'
 };
 
@@ -543,6 +600,7 @@ async function loadAllData(){
     state.students = data.students || [];
     state.expenses = data.expenses || [];
     state.payments = data.payments || [];
+    state.futurePlans = data.futurePlans || [];
     renderAll();
   }catch(err){
     console.error(err);
@@ -575,13 +633,11 @@ function renderKpis(){
   const totalExpense = state.expenses.reduce((a,e)=>a+Number(e.amount||0),0);
   const totalTarget = state.students.reduce((a,s)=>a+Number(s.target||0),0);
   const totalCollectedFromStudents = state.students.reduce((a,s)=>a+Number(s.paid||0),0);
-  const debt = Math.max(0, totalTarget - totalCollectedFromStudents);
   const balance = totalIncome - totalExpense;
 
   document.getElementById('kpiBalance').textContent = fmt(balance);
   document.getElementById('kpiIncome').textContent = fmt(totalIncome);
   document.getElementById('kpiExpense').textContent = fmt(totalExpense);
-  document.getElementById('kpiDebt').textContent = fmt(debt);
   const pct = totalTarget > 0 ? Math.round((totalCollectedFromStudents/totalTarget)*100) : 0;
   document.getElementById('kpiIncomePct').textContent = pct + '% מהיעד';
 }
@@ -618,6 +674,7 @@ function renderExpenses(){
       <td>${escapeHtml(e.category)}</td>
       <td class="cell-amount" style="color:var(--expense);">${fmt(e.amount)}</td>
       <td>${escapeHtml(e.paidBy||'')}</td>
+      <td style="text-align:center;">${e.receiptUrl ? `<a href="${escapeHtml(e.receiptUrl)}" target="_blank" rel="noopener" title="צפייה בקבלה">🧾</a>` : '—'}</td>
       <td class="admin-only" style="display:${state.isAdmin?'table-cell':'none'};text-align:left;">
         <div class="row-actions">
           <button class="icon-btn danger" title="מחיקה" onclick="deleteExpense(${i})">🗑</button>
@@ -641,11 +698,43 @@ function renderPayments(){
   `).join('');
 }
 
+function renderPlanning(){
+  const totalIncome = state.payments.reduce((a,p)=>a+Number(p.amount||0),0);
+  const totalExpense = state.expenses.reduce((a,e)=>a+Number(e.amount||0),0);
+  const balance = totalIncome - totalExpense;
+  const totalPlanned = state.futurePlans.reduce((a,p)=>a+Number(p.amount||0),0);
+  const diff = balance - totalPlanned;
+
+  document.getElementById('planBalance').textContent = fmt(balance);
+  document.getElementById('planTotal').textContent = fmt(totalPlanned);
+  const diffEl = document.getElementById('planDiff');
+  diffEl.textContent = fmt(diff);
+  diffEl.style.color = diff < 0 ? 'var(--expense)' : 'var(--income)';
+
+  const body = document.getElementById('planningBody');
+  document.getElementById('planningEmpty').style.display = state.futurePlans.length ? 'none' : 'block';
+  body.innerHTML = state.futurePlans.map((pl,i)=>`
+    <tr>
+      <td>${escapeHtml(pl.title)}</td>
+      <td>${escapeHtml(pl.category||'')}</td>
+      <td class="cell-amount">${fmt(pl.amount)}</td>
+      <td>${escapeHtml(pl.period||'')}</td>
+      <td>${escapeHtml(pl.notes||'')}</td>
+      <td class="admin-only" style="display:${state.isAdmin?'table-cell':'none'};text-align:left;">
+        <div class="row-actions">
+          <button class="icon-btn danger" title="מחיקה" onclick="deletePlan(${i})">🗑</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
 function renderAll(){
   renderKpis();
   renderStudents();
   renderExpenses();
   renderPayments();
+  renderPlanning();
   populateStudentDropdown();
 }
 
@@ -693,8 +782,38 @@ document.getElementById('addExpenseBtn').addEventListener('click', ()=>{
   document.getElementById('exDate').value = new Date().toISOString().slice(0,10);
   document.getElementById('exCategory').value='מתנות לצוות';
   document.getElementById('exPaidBy').value='';
+  document.getElementById('exReceipt').value='';
+  document.getElementById('exReceiptName').textContent='';
   openModal('expenseModal');
 });
+
+document.getElementById('exReceipt').addEventListener('change', ()=>{
+  const file = document.getElementById('exReceipt').files[0];
+  const label = document.getElementById('exReceiptName');
+  if(!file){ label.textContent=''; return; }
+  if(file.size > 5*1024*1024){
+    showToast('הקובץ גדול מדי (מקסימום 5MB)', true);
+    document.getElementById('exReceipt').value='';
+    label.textContent='';
+    return;
+  }
+  label.textContent = file.name;
+});
+
+/** Reads a File as a base64 data URL and returns {data, mimeType, filename},
+ *  ready to embed in the JSON POST body (Apps Script has no multipart upload,
+ *  so the image travels as base64 text alongside the rest of the fields). */
+function fileToBase64Payload(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1];
+      resolve({ data: base64, mimeType: file.type || 'image/jpeg', filename: file.name });
+    };
+    reader.onerror = () => reject(new Error('שגיאה בקריאת הקובץ'));
+    reader.readAsDataURL(file);
+  });
+}
 
 document.getElementById('addPaymentBtn').addEventListener('click', ()=>{
   if(!state.isAdmin) return;
@@ -705,6 +824,52 @@ document.getElementById('addPaymentBtn').addEventListener('click', ()=>{
   document.getElementById('payCoversAll').checked=false;
   openModal('paymentModal');
 });
+
+document.getElementById('addPlanBtn').addEventListener('click', ()=>{
+  if(!state.isAdmin) return;
+  document.getElementById('plTitle').value='';
+  document.getElementById('plAmount').value='';
+  document.getElementById('plCategory').value='חג / אירוע';
+  document.getElementById('plPeriod').value='';
+  document.getElementById('plNotes').value='';
+  openModal('planModal');
+});
+
+document.getElementById('savePlanBtn').addEventListener('click', async ()=>{
+  if(!state.isAdmin) return;
+  if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
+  const title = document.getElementById('plTitle').value.trim();
+  const amount = parseFloat(document.getElementById('plAmount').value);
+  const category = document.getElementById('plCategory').value;
+  const period = document.getElementById('plPeriod').value.trim();
+  const notes = document.getElementById('plNotes').value.trim();
+  if(!title || !amount){ showToast('נא למלא כותרת וסכום', true); return; }
+
+  showLoader('שומר תכנון...');
+  try{
+    await apiPost({ action:'addPlan', title, amount, category, period, notes });
+    closeModal('planModal');
+    await loadAllData();
+    showToast('התכנון נשמר בהצלחה');
+  }catch(err){
+    console.error(err); showToast('שגיאה בשמירת התכנון', true);
+  }finally{ hideLoader(); }
+});
+
+async function deletePlan(idx){
+  if(!state.isAdmin) return;
+  if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
+  if(!confirm('למחוק את התכנון?')) return;
+  const plan = state.futurePlans[idx];
+  showLoader('מוחק...');
+  try{
+    await apiPost({ action:'deletePlan', id: plan.id });
+    await loadAllData();
+    showToast('התכנון נמחק');
+  }catch(err){
+    console.error(err); showToast('שגיאה במחיקה', true);
+  }finally{ hideLoader(); }
+}
 
 function populateStudentDropdown(){
   const sel = document.getElementById('payStudent');
@@ -739,7 +904,10 @@ document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
 
   showLoader('שומר הוצאה...');
   try{
-    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy });
+    const receiptFile = document.getElementById('exReceipt').files[0];
+    const receiptImage = receiptFile ? await fileToBase64Payload(receiptFile) : null;
+    if(receiptFile) showLoader('מעלה קבלה...');
+    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy, receiptImage });
     closeModal('expenseModal');
     await loadAllData();
     showToast('ההוצאה נשמרה בהצלחה');
