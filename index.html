@@ -79,9 +79,9 @@
     .header-inner{padding:10px 12px;}
     .brand h1{font-size:16px;}
     .header-actions{
-      display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px;
+      display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px;
     }
-    .header-actions .btn{width:100%;padding:8px 8px;font-size:12.5px;white-space:nowrap;}
+    .header-actions .btn{width:100%;padding:8px 4px;font-size:11px;white-space:nowrap;gap:3px;}
   }
 
   .readonly-banner{
@@ -93,11 +93,12 @@
   .kpi-grid{
     display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0;
   }
-  @media (max-width:800px){.kpi-grid{grid-template-columns:repeat(1,1fr);}}
   @media (max-width:480px){
-    .kpi-grid{gap:8px;margin:12px 0;}
-    .kpi-card{padding:12px;}
-    .kpi-value{font-size:20px;}
+    .kpi-grid{gap:6px;margin:10px 0;}
+    .kpi-card{padding:8px 6px;border-radius:10px;}
+    .kpi-label{font-size:9.5px;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .kpi-value{font-size:14px;}
+    .kpi-sub{font-size:9px;margin-top:2px;}
   }
   .kpi-card{
     background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
@@ -246,7 +247,7 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-outline" id="exportPdfBtn">📄 ייצוא לדוח PDF</button>
+      <button class="btn btn-outline" id="exportPdfBtn" style="display:none;">📄 ייצוא לדוח PDF</button>
       <button class="btn btn-primary admin-only" id="addExpenseBtn" style="display:none;">+ הוצאה</button>
       <button class="btn btn-primary admin-only" id="addPaymentBtn" style="display:none;">+ תשלום</button>
     </div>
@@ -568,6 +569,7 @@ function applyAuthState(){
 
   document.getElementById('googleSignInBtn').style.display = state.userEmail ? 'none' : 'inline-block';
   document.getElementById('logoutBtn').style.display = state.userEmail ? 'inline-flex' : 'none';
+  document.getElementById('exportPdfBtn').style.display = state.userEmail ? 'inline-flex' : 'none';
   if (!state.userEmail) renderGoogleButton();
 }
 
