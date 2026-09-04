@@ -111,6 +111,23 @@
   .kpi-income .kpi-value{color:var(--income);}
   .kpi-expense .kpi-value{color:var(--expense);}
 
+  /* ---------- Org (top-level) Tabs ---------- */
+  .org-tabs{
+    display:flex;gap:8px;margin:16px 0;
+  }
+  .org-tab-btn{
+    flex:1;border:2px solid var(--border);background:var(--card);border-radius:14px;
+    padding:12px;font-size:14px;font-weight:800;color:var(--text-muted);
+    display:flex;align-items:center;justify-content:center;gap:6px;
+  }
+  .org-tab-btn.active{
+    border-color:var(--accent);background:var(--accent-soft);color:var(--accent);
+  }
+  @media (max-width:480px){
+    .org-tabs{margin:10px 0;gap:6px;}
+    .org-tab-btn{padding:9px 6px;font-size:12px;border-radius:10px;}
+  }
+
   /* ---------- Tabs ---------- */
   .tabs{
     display:flex;gap:4px;background:var(--card);border:1px solid var(--border);border-radius:12px;
@@ -256,6 +273,11 @@
 </header>
 
 <div class="container">
+
+  <nav class="org-tabs" id="orgTabs">
+    <button class="org-tab-btn active" data-org="kita">🏫 ועד כיתה</button>
+    <button class="org-tab-btn" data-org="tzohoron">🎒 ועד צהרון</button>
+  </nav>
 
   <section class="kpi-grid">
     <div class="kpi-card kpi-balance">
@@ -452,17 +474,20 @@
    CONFIG — edit these constants for your deployment
    ============================================================ */
 const ADMIN_EMAILS = [
-  "tamir.tsricker@gmail.com",
-  "nut.cr4ck3r.pro@gmail.com"
+  "admin1@example.com",
+  "admin2@example.com",
+  "admin3@example.com",
+  "admin4@example.com",
+  "admin5@example.com"
 ];
-const API_URL = "https://script.google.com/macros/s/AKfycbzEmOxdZNWOFBLp027tf35gLkqFyNvkGCUxvm11F2Ie33B-XCRyurCJueUV2Gtl4v0m/exec";
+const API_URL = "PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE";
 
 // Create this in Google Cloud Console > APIs & Services > Credentials
 // (OAuth 2.0 Client ID, type "Web application"), and add your GitHub Pages
 // origin (e.g. https://joock3r.github.io) under "Authorized JavaScript origins".
 // Must be IDENTICAL to the GOOGLE_CLIENT_ID constant in Code.gs — the server
 // verifies every token was issued for this exact client.
-const GOOGLE_CLIENT_ID = "431204508277-nm33th0fs73s81cpn09ngmmalmbvgso1.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID = "PASTE_YOUR_GOOGLE_OAUTH_CLIENT_ID_HERE.apps.googleusercontent.com";
 
 /* ============================================================
    STATE
@@ -471,12 +496,36 @@ let state = {
   isAdmin: false,
   userEmail: null,
   idToken: null,
+  currentOrg: 'kita', // 'kita' (ועד כיתה) | 'tzohoron' (ועד צהרון) — top-level selector
   students: [],
   expenses: [],
   payments: [],
   futurePlans: [],
   studentFilter: 'all'
 };
+
+/** Rows are tagged with an `org` field ('kita' / 'tzohoron'). Rows written
+ *  before this feature existed have no org field at all — those are treated
+ *  as 'kita' by default so nothing existing silently disappears. All render
+ *  functions and index-based actions (delete, quick-payment) go through
+ *  these getters instead of touching state.<array> directly, so the indices
+ *  used by onclick handlers always line up with what's currently on screen.
+ *
+ *  Students are special: every child is fundamentally a member of the class
+ *  (ועד כיתה), so the "kita" view always shows every student regardless of
+ *  their org tag. Only a student explicitly tagged "tzohoron" additionally
+ *  shows up under the "tzohoron" view — this mirrors studentBelongsToOrg_
+ *  in Code.gs exactly, so what's pickable here is exactly what gets updated
+ *  server-side. */
+function getStudents(){
+  return state.students.filter(s => {
+    if (state.currentOrg === 'kita') return true;
+    return (s.org||'kita') === 'tzohoron';
+  });
+}
+function getExpenses(){ return state.expenses.filter(e => (e.org||'kita') === state.currentOrg); }
+function getPayments(){ return state.payments.filter(p => (p.org||'kita') === state.currentOrg); }
+function getFuturePlans(){ return state.futurePlans.filter(p => (p.org||'kita') === state.currentOrg); }
 
 /* ============================================================
    AUTH — Google Sign-In (Google Identity Services), matching the
@@ -669,10 +718,10 @@ function statusLabel(st){
    RENDER
    ============================================================ */
 function renderKpis(){
-  const totalIncome = state.payments.reduce((a,p)=>a+Number(p.amount||0),0);
-  const totalExpense = state.expenses.reduce((a,e)=>a+Number(e.amount||0),0);
-  const totalTarget = state.students.reduce((a,s)=>a+Number(s.target||0),0);
-  const totalCollectedFromStudents = state.students.reduce((a,s)=>a+Number(s.paid||0),0);
+  const totalIncome = getPayments().reduce((a,p)=>a+Number(p.amount||0),0);
+  const totalExpense = getExpenses().reduce((a,e)=>a+Number(e.amount||0),0);
+  const totalTarget = getStudents().reduce((a,s)=>a+Number(s.target||0),0);
+  const totalCollectedFromStudents = getStudents().reduce((a,s)=>a+Number(s.paid||0),0);
   const balance = totalIncome - totalExpense;
 
   document.getElementById('kpiBalance').textContent = fmt(balance);
@@ -684,7 +733,7 @@ function renderKpis(){
 
 function renderStudents(){
   const body = document.getElementById('studentsBody');
-  let rows = state.students.map((s,i)=>({...s, _idx:i, _status: studentStatus(s)}));
+  let rows = getStudents().map((s,i)=>({...s, _idx:i, _status: studentStatus(s)}));
   if (state.studentFilter === 'unpaid') rows = rows.filter(r=>r._status!=='paid');
   if (state.studentFilter === 'paid') rows = rows.filter(r=>r._status==='paid');
 
@@ -706,8 +755,9 @@ function renderStudents(){
 
 function renderExpenses(){
   const body = document.getElementById('expensesBody');
-  document.getElementById('expensesEmpty').style.display = state.expenses.length ? 'none' : 'block';
-  body.innerHTML = state.expenses.map((e,i)=>`
+  const expenses = getExpenses();
+  document.getElementById('expensesEmpty').style.display = expenses.length ? 'none' : 'block';
+  body.innerHTML = expenses.map((e,i)=>`
     <tr>
       <td class="num">${e.date||''}</td>
       <td>${escapeHtml(e.description)}</td>
@@ -726,8 +776,9 @@ function renderExpenses(){
 
 function renderPayments(){
   const body = document.getElementById('paymentsBody');
-  document.getElementById('paymentsEmpty').style.display = state.payments.length ? 'none' : 'block';
-  body.innerHTML = state.payments.map(p=>`
+  const payments = getPayments();
+  document.getElementById('paymentsEmpty').style.display = payments.length ? 'none' : 'block';
+  body.innerHTML = payments.map(p=>`
     <tr>
       <td class="num">${p.date||''}</td>
       <td>${escapeHtml(p.payerName)}</td>
@@ -739,10 +790,11 @@ function renderPayments(){
 }
 
 function renderPlanning(){
-  const totalIncome = state.payments.reduce((a,p)=>a+Number(p.amount||0),0);
-  const totalExpense = state.expenses.reduce((a,e)=>a+Number(e.amount||0),0);
+  const totalIncome = getPayments().reduce((a,p)=>a+Number(p.amount||0),0);
+  const totalExpense = getExpenses().reduce((a,e)=>a+Number(e.amount||0),0);
   const balance = totalIncome - totalExpense;
-  const totalPlanned = state.futurePlans.reduce((a,p)=>a+Number(p.amount||0),0);
+  const futurePlans = getFuturePlans();
+  const totalPlanned = futurePlans.reduce((a,p)=>a+Number(p.amount||0),0);
   const diff = balance - totalPlanned;
 
   document.getElementById('planBalance').textContent = fmt(balance);
@@ -752,8 +804,8 @@ function renderPlanning(){
   diffEl.style.color = diff < 0 ? 'var(--expense)' : 'var(--income)';
 
   const body = document.getElementById('planningBody');
-  document.getElementById('planningEmpty').style.display = state.futurePlans.length ? 'none' : 'block';
-  body.innerHTML = state.futurePlans.map((pl,i)=>`
+  document.getElementById('planningEmpty').style.display = futurePlans.length ? 'none' : 'block';
+  body.innerHTML = futurePlans.map((pl,i)=>`
     <tr>
       <td>${escapeHtml(pl.title)}</td>
       <td>${escapeHtml(pl.category||'')}</td>
@@ -781,6 +833,19 @@ function renderAll(){
 function escapeHtml(str){
   return String(str==null?'':str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
+
+/* ============================================================
+   ORG TABS (top-level: ועד כיתה / ועד צהרון)
+   ============================================================ */
+document.querySelectorAll('.org-tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(btn.dataset.org === state.currentOrg) return;
+    document.querySelectorAll('.org-tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.currentOrg = btn.dataset.org;
+    renderAll();
+  });
+});
 
 /* ============================================================
    TABS
@@ -887,7 +952,7 @@ document.getElementById('savePlanBtn').addEventListener('click', async ()=>{
 
   showLoader('שומר תכנון...');
   try{
-    await apiPost({ action:'addPlan', title, amount, category, period, notes });
+    await apiPost({ action:'addPlan', title, amount, category, period, notes, org: state.currentOrg });
     closeModal('planModal');
     await loadAllData();
     showToast('התכנון נשמר בהצלחה');
@@ -900,7 +965,7 @@ async function deletePlan(idx){
   if(!state.isAdmin) return;
   if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   if(!confirm('למחוק את התכנון?')) return;
-  const plan = state.futurePlans[idx];
+  const plan = getFuturePlans()[idx];
   showLoader('מוחק...');
   try{
     await apiPost({ action:'deletePlan', id: plan.id });
@@ -913,12 +978,12 @@ async function deletePlan(idx){
 
 function populateStudentDropdown(){
   const sel = document.getElementById('payStudent');
-  sel.innerHTML = state.students.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+  sel.innerHTML = getStudents().map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
 }
 
 function openQuickPayment(idx){
   if(!state.isAdmin) return;
-  const s = state.students[idx];
+  const s = getStudents()[idx];
   document.getElementById('payAmount').value='';
   document.getElementById('payDate').value = new Date().toISOString().slice(0,10);
   document.getElementById('payMethod').value='Bit';
@@ -947,7 +1012,7 @@ document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
     const receiptFile = document.getElementById('exReceipt').files[0];
     const receiptImage = receiptFile ? await fileToBase64Payload(receiptFile) : null;
     if(receiptFile) showLoader('מעלה קבלה...');
-    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy, receiptImage });
+    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy, receiptImage, org: state.currentOrg });
     closeModal('expenseModal');
     await loadAllData();
     showToast('ההוצאה נשמרה בהצלחה');
@@ -969,7 +1034,7 @@ document.getElementById('savePaymentBtn').addEventListener('click', async ()=>{
 
   showLoader('שומר תשלום...');
   try{
-    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, coversAll });
+    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, coversAll, org: state.currentOrg });
     closeModal('paymentModal');
     await loadAllData();
     showToast('התשלום נשמר בהצלחה');
@@ -982,7 +1047,7 @@ async function deleteExpense(idx){
   if(!state.isAdmin) return;
   if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   if(!confirm('למחוק את ההוצאה?')) return;
-  const exp = state.expenses[idx];
+  const exp = getExpenses()[idx];
   showLoader('מוחק...');
   try{
     await apiPost({ action:'deleteExpense', email: state.userEmail, id: exp.id });
@@ -998,9 +1063,10 @@ async function deleteExpense(idx){
    ============================================================ */
 document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
   document.getElementById('printDate').textContent = new Date().toLocaleDateString('he-IL');
+  const orgLabel = state.currentOrg === 'tzohoron' ? 'צהרון' : 'כיתה';
   const opt = {
     margin: 0.4,
-    filename: 'דוח-ועד-כיתה-א2.pdf',
+    filename: `דוח-ועד-${orgLabel}.pdf`,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2 },
     jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
