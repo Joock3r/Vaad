@@ -431,13 +431,12 @@
     <div class="modal-head"><h3>הוספת תשלום תלמיד</h3><button class="icon-btn" data-close="paymentModal">✕</button></div>
     <div class="modal-body">
       <div class="field"><label>שם תלמיד</label><select id="payStudent"></select></div>
-      <div class="field"><label>סכום ששולם</label><input type="number" id="payAmount" min="0" step="0.01" placeholder="0.00"></div>
+      <div class="field"><label>סכום ששולם (אוטומטי לפי הגיליון)</label><input type="number" id="payAmount" min="0" step="0.01" placeholder="0.00" readonly style="background:#f1f5f9;color:var(--text-muted);"></div>
       <div class="field"><label>תאריך</label><input type="date" id="payDate"></div>
       <div class="field"><label>אמצעי תשלום</label>
-        <select id="payMethod"><option>Bit</option><option>PayBox</option><option>העברה בנקאית</option><option>מזומן</option></select>
+        <select id="payMethod"><option>PayBox</option><option>Bit</option><option>העברה בנקאית</option><option>מזומן</option></select>
       </div>
       <div class="field"><label>הערות</label><input type="text" id="payNotes" placeholder="אופציונלי"></div>
-      <div class="checkbox-field"><input type="checkbox" id="payCoversAll"><label for="payCoversAll" style="margin:0;">התשלום מכסה את כל החוב</label></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" data-close="paymentModal">ביטול</button>
@@ -911,11 +910,10 @@ function fileToBase64Payload(file){
 
 document.getElementById('addPaymentBtn').addEventListener('click', ()=>{
   if(!state.isAdmin) return;
-  document.getElementById('payAmount').value='';
   document.getElementById('payDate').value = new Date().toISOString().slice(0,10);
-  document.getElementById('payMethod').value='Bit';
+  document.getElementById('payMethod').value='PayBox';
   document.getElementById('payNotes').value='';
-  document.getElementById('payCoversAll').checked=false;
+  autofillPaymentAmount();
   openModal('paymentModal');
 });
 
@@ -980,16 +978,26 @@ function populateStudentDropdown(){
   sel.innerHTML = getStudents().map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
 }
 
+/** ממלאת אוטומטית את סכום התשלום לפי היעד (target/targetTzohoron, בהתאם
+ *  לטאב הוועד הפעיל) של התלמיד הנבחר כרגע ב-payStudent — כך שהמנהל לעולם
+ *  לא צריך להקליד את הסכום ידנית, השדה נעול (readonly) ומשקף תמיד את
+ *  מה שכתוב בגיליון. */
+function autofillPaymentAmount(){
+  const name = document.getElementById('payStudent').value;
+  const s = getStudents().find(st => st.name === name);
+  document.getElementById('payAmount').value = s ? (studentOrgAmounts(s).target || '') : '';
+}
+document.getElementById('payStudent').addEventListener('change', autofillPaymentAmount);
+
 function openQuickPayment(idx){
   if(!state.isAdmin) return;
   const s = getStudents()[idx];
-  document.getElementById('payAmount').value='';
   document.getElementById('payDate').value = new Date().toISOString().slice(0,10);
-  document.getElementById('payMethod').value='Bit';
+  document.getElementById('payMethod').value='PayBox';
   document.getElementById('payNotes').value='';
-  document.getElementById('payCoversAll').checked=false;
   populateStudentDropdown();
   document.getElementById('payStudent').value = s.name;
+  autofillPaymentAmount();
   openModal('paymentModal');
 }
 
@@ -1028,12 +1036,11 @@ document.getElementById('savePaymentBtn').addEventListener('click', async ()=>{
   const date = document.getElementById('payDate').value;
   const method = document.getElementById('payMethod').value;
   const notes = document.getElementById('payNotes').value.trim();
-  const coversAll = document.getElementById('payCoversAll').checked;
   if(!studentName || !amount || !date){ showToast('נא למלא את כל שדות החובה', true); return; }
 
   showLoader('שומר תשלום...');
   try{
-    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, coversAll, org: state.currentOrg });
+    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, org: state.currentOrg });
     closeModal('paymentModal');
     await loadAllData();
     showToast('התשלום נשמר בהצלחה');
