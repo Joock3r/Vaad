@@ -236,17 +236,6 @@
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .toast.error{background:var(--expense);}
-
-  footer.print-only{display:none;}
-
-  @media print{
-    header.app-header, .tabs, .panel-toolbar .filter-group, .header-actions, .row-actions, .readonly-banner{display:none !important;}
-    body{background:#fff;}
-    .kpi-grid{grid-template-columns:repeat(2,1fr);}
-    .tab-panel{display:block !important;margin-bottom:24px;}
-    .panel-card{box-shadow:none;border:1px solid #ccc;break-inside:avoid;}
-    footer.print-only{display:block;text-align:center;font-size:11px;color:#666;margin-top:20px;}
-  }
 </style>
 </head>
 <body>
@@ -378,7 +367,6 @@
     </div>
   </section>
 
-  <footer class="print-only">דוח נוצר אוטומטית ע"י מערכת ניהול ועד כיתה א'2 · <span id="printDate"></span></footer>
 </div>
 
 <!-- Add Plan Modal -->
@@ -1068,8 +1056,58 @@ async function deleteExpense(idx){
    PDF EXPORT
    ============================================================ */
 document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
-  document.getElementById('printDate').textContent = new Date().toLocaleDateString('he-IL');
   const orgLabel = state.currentOrg === 'tzohoron' ? 'צהרון' : 'כיתה';
+  const totalIncome = getPayments().reduce((a,p)=>a+Number(p.amount||0),0);
+  const totalExpense = getExpenses().reduce((a,e)=>a+Number(e.amount||0),0);
+  const balance = totalIncome - totalExpense;
+  const expenses = [...getExpenses()].sort((a,b)=> (a.date||'') < (b.date||'') ? 1 : -1);
+
+  // Builds a standalone printable report (not a screenshot of the live
+  // dashboard) — so the PDF contains exactly what was asked for: the
+  // balance, total expenses, and the detailed expense list for whichever
+  // committee tab is currently active — nothing else from the app UI.
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:fixed;top:-99999px;right:-99999px;width:780px;padding:28px;background:#fff;color:#0f172a;font-family:Heebo,sans-serif;direction:rtl;';
+  wrap.innerHTML = `
+    <h1 style="font-size:20px;margin:0 0 4px;">דוח ועד ${orgLabel} — ועד כיתה א'2</h1>
+    <div style="font-size:12px;color:#64748b;margin-bottom:22px;">הופק בתאריך ${new Date().toLocaleDateString('he-IL')}</div>
+    <div style="display:flex;gap:12px;margin-bottom:26px;">
+      <div style="flex:1;border:1px solid #e2e8f0;border-radius:12px;padding:16px;">
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px;font-weight:600;">יתרה נוכחית בקופה</div>
+        <div style="font-size:24px;font-weight:800;font-family:'Space Mono',monospace;color:#4f46e5;">${fmt(balance)}</div>
+      </div>
+      <div style="flex:1;border:1px solid #e2e8f0;border-radius:12px;padding:16px;">
+        <div style="font-size:12px;color:#64748b;margin-bottom:6px;font-weight:600;">סך כל ההוצאות</div>
+        <div style="font-size:24px;font-weight:800;font-family:'Space Mono',monospace;color:#e11d48;">${fmt(totalExpense)}</div>
+      </div>
+    </div>
+    <h2 style="font-size:15px;margin:0 0 10px;">פירוט ההוצאות</h2>
+    ${expenses.length ? `
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <thead><tr style="border-bottom:2px solid #e2e8f0;">
+        <th style="text-align:right;padding:7px 6px;color:#64748b;">תאריך</th>
+        <th style="text-align:right;padding:7px 6px;color:#64748b;">תיאור</th>
+        <th style="text-align:right;padding:7px 6px;color:#64748b;">קטגוריה</th>
+        <th style="text-align:right;padding:7px 6px;color:#64748b;">שולם ע"י</th>
+        <th style="text-align:left;padding:7px 6px;color:#64748b;">סכום</th>
+      </tr></thead>
+      <tbody>
+        ${expenses.map(e=>`<tr style="border-bottom:1px solid #f1f5f9;">
+          <td style="padding:7px 6px;font-family:'Space Mono',monospace;">${e.date||''}</td>
+          <td style="padding:7px 6px;">${escapeHtml(e.description)}</td>
+          <td style="padding:7px 6px;">${escapeHtml(e.category)}</td>
+          <td style="padding:7px 6px;">${escapeHtml(e.paidBy||'')}</td>
+          <td style="padding:7px 6px;text-align:left;font-weight:700;font-family:'Space Mono',monospace;color:#e11d48;">${fmt(e.amount)}</td>
+        </tr>`).join('')}
+      </tbody>
+      <tfoot><tr style="border-top:2px solid #e2e8f0;">
+        <td colspan="4" style="padding:9px 6px;font-weight:700;">סה"כ</td>
+        <td style="padding:9px 6px;text-align:left;font-weight:800;font-family:'Space Mono',monospace;color:#e11d48;">${fmt(totalExpense)}</td>
+      </tr></tfoot>
+    </table>` : `<div style="text-align:center;color:#94a3b8;padding:24px;font-size:13px;">אין הוצאות רשומות</div>`}
+  `;
+  document.body.appendChild(wrap);
+
   const opt = {
     margin: 0.4,
     filename: `דוח-ועד-${orgLabel}.pdf`,
@@ -1077,13 +1115,8 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
     html2canvas: { scale: 2 },
     jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
   };
-  // Temporarily show all tab panels for full report capture
-  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.add('active'));
-  html2pdf().set(opt).from(document.querySelector('.container')).save().then(()=>{
-    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-    document.getElementById('tab-students').classList.add('active');
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelector('.tab-btn[data-tab="students"]').classList.add('active');
+  html2pdf().set(opt).from(wrap).save().then(()=>{
+    document.body.removeChild(wrap);
   });
 });
 
