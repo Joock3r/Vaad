@@ -91,7 +91,7 @@
 
   /* ---------- KPI Cards ---------- */
   .kpi-grid{
-    display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0;
+    display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:18px 0;
   }
   @media (max-width:480px){
     .kpi-grid{gap:6px;margin:10px 0;}
@@ -242,7 +242,7 @@
   @media print{
     header.app-header, .tabs, .panel-toolbar .filter-group, .header-actions, .row-actions, .readonly-banner{display:none !important;}
     body{background:#fff;}
-    .kpi-grid{grid-template-columns:repeat(3,1fr);}
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
     .tab-panel{display:block !important;margin-bottom:24px;}
     .panel-card{box-shadow:none;border:1px solid #ccc;break-inside:avoid;}
     footer.print-only{display:block;text-align:center;font-size:11px;color:#666;margin-top:20px;}
@@ -284,11 +284,6 @@
       <div class="kpi-label">יתרה נוכחית בקופה</div>
       <div class="kpi-value num" id="kpiBalance">₪0</div>
     </div>
-    <div class="kpi-card kpi-income">
-      <div class="kpi-label">סך הכל נגבה מהורים</div>
-      <div class="kpi-value num" id="kpiIncome">₪0</div>
-      <div class="kpi-sub" id="kpiIncomePct">0% מהיעד</div>
-    </div>
     <div class="kpi-card kpi-expense">
       <div class="kpi-label">סך כל ההוצאות</div>
       <div class="kpi-value num" id="kpiExpense">₪0</div>
@@ -296,9 +291,9 @@
   </section>
 
   <nav class="tabs">
-    <button class="tab-btn active" data-tab="students">מעקב גבייה</button>
-    <button class="tab-btn" data-tab="expenses">יומן הוצאות</button>
-    <button class="tab-btn" data-tab="payments">יומן תשלומים</button>
+    <button class="tab-btn active" data-tab="students">גבייה</button>
+    <button class="tab-btn" data-tab="expenses">הוצאות</button>
+    <button class="tab-btn" data-tab="payments">הכנסות</button>
     <button class="tab-btn" data-tab="planning">תכנון עתידי</button>
   </nav>
 
@@ -357,10 +352,6 @@
   <!-- Planning tab -->
   <section class="tab-panel" id="tab-planning">
     <section class="kpi-grid" style="margin-bottom:14px;">
-      <div class="kpi-card kpi-balance">
-        <div class="kpi-label">יתרה נוכחית בקופה</div>
-        <div class="kpi-value num" id="planBalance">₪0</div>
-      </div>
       <div class="kpi-card kpi-expense">
         <div class="kpi-label">סך כל התכנון העתידי</div>
         <div class="kpi-value num" id="planTotal">₪0</div>
@@ -378,7 +369,7 @@
       <div style="overflow-x:auto;">
         <table>
           <thead><tr>
-            <th>כותרת</th><th>קטגוריה</th><th>סכום משוער</th><th>תקופה משוערת</th><th>הערות</th><th class="admin-only" style="display:none;"></th>
+            <th>כותרת</th><th>סכום משוער</th><th>תקופה משוערת</th><th>הערות</th><th style="text-align:center;">בוצע</th><th class="admin-only" style="display:none;"></th>
           </tr></thead>
           <tbody id="planningBody"></tbody>
         </table>
@@ -397,11 +388,6 @@
     <div class="modal-body">
       <div class="field"><label>כותרת</label><input type="text" id="plTitle" placeholder="לדוגמה: מסיבת חנוכה"></div>
       <div class="field"><label>סכום משוער (ש"ח)</label><input type="number" id="plAmount" min="0" step="0.01" placeholder="0.00"></div>
-      <div class="field"><label>קטגוריה</label>
-        <select id="plCategory">
-          <option>חג / אירוע</option><option>יום כיף</option><option>מתנת סוף שנה</option><option>ציוד</option><option>אחר</option>
-        </select>
-      </div>
       <div class="field"><label>תקופה משוערת</label><input type="text" id="plPeriod" placeholder="לדוגמה: דצמבר 2026"></div>
       <div class="field"><label>הערות</label><input type="text" id="plNotes" placeholder="אופציונלי"></div>
     </div>
@@ -701,8 +687,17 @@ async function loadAllData(){
    ============================================================ */
 const fmt = n => '₪' + Number(n||0).toLocaleString('he-IL', {maximumFractionDigits:2});
 
+/** Students track separate target/paid amounts per committee (the Tzohoron
+ *  fee isn't the same as the Kita fee) — this picks the right pair based on
+ *  which committee tab is currently active. */
+function studentOrgAmounts(s){
+  if (state.currentOrg === 'tzohoron'){
+    return { target: Number(s.targetTzohoron||0), paid: Number(s.paidTzohoron||0) };
+  }
+  return { target: Number(s.target||0), paid: Number(s.paid||0) };
+}
 function studentStatus(s){
-  const paid = Number(s.paid||0), target = Number(s.target||0);
+  const {target, paid} = studentOrgAmounts(s);
   if (paid <= 0) return 'unpaid';
   if (paid >= target) return 'paid';
   return 'partial';
@@ -717,20 +712,15 @@ function statusLabel(st){
 function renderKpis(){
   const totalIncome = getPayments().reduce((a,p)=>a+Number(p.amount||0),0);
   const totalExpense = getExpenses().reduce((a,e)=>a+Number(e.amount||0),0);
-  const totalTarget = getStudents().reduce((a,s)=>a+Number(s.target||0),0);
-  const totalCollectedFromStudents = getStudents().reduce((a,s)=>a+Number(s.paid||0),0);
   const balance = totalIncome - totalExpense;
 
   document.getElementById('kpiBalance').textContent = fmt(balance);
-  document.getElementById('kpiIncome').textContent = fmt(totalIncome);
   document.getElementById('kpiExpense').textContent = fmt(totalExpense);
-  const pct = totalTarget > 0 ? Math.round((totalCollectedFromStudents/totalTarget)*100) : 0;
-  document.getElementById('kpiIncomePct').textContent = pct + '% מהיעד';
 }
 
 function renderStudents(){
   const body = document.getElementById('studentsBody');
-  let rows = getStudents().map((s,i)=>({...s, _idx:i, _status: studentStatus(s)}));
+  let rows = getStudents().map((s,i)=>({...s, _idx:i, _amounts: studentOrgAmounts(s), _status: studentStatus(s)}));
   if (state.studentFilter === 'unpaid') rows = rows.filter(r=>r._status!=='paid');
   if (state.studentFilter === 'paid') rows = rows.filter(r=>r._status==='paid');
 
@@ -738,8 +728,8 @@ function renderStudents(){
   body.innerHTML = rows.map(r=>`
     <tr>
       <td>${escapeHtml(r.name)}</td>
-      <td class="cell-amount">${fmt(r.target)}</td>
-      <td class="cell-amount">${fmt(r.paid)}</td>
+      <td class="cell-amount">${fmt(r._amounts.target)}</td>
+      <td class="cell-amount">${fmt(r._amounts.paid)}</td>
       <td><span class="status-pill status-${r._status}">${statusLabel(r._status)}</span></td>
       <td class="admin-only" style="display:${state.isAdmin?'table-cell':'none'};text-align:left;">
         <div class="row-actions">
@@ -794,7 +784,6 @@ function renderPlanning(){
   const totalPlanned = futurePlans.reduce((a,p)=>a+Number(p.amount||0),0);
   const diff = balance - totalPlanned;
 
-  document.getElementById('planBalance').textContent = fmt(balance);
   document.getElementById('planTotal').textContent = fmt(totalPlanned);
   const diffEl = document.getElementById('planDiff');
   diffEl.textContent = fmt(diff);
@@ -803,12 +792,15 @@ function renderPlanning(){
   const body = document.getElementById('planningBody');
   document.getElementById('planningEmpty').style.display = futurePlans.length ? 'none' : 'block';
   body.innerHTML = futurePlans.map((pl,i)=>`
-    <tr>
-      <td>${escapeHtml(pl.title)}</td>
-      <td>${escapeHtml(pl.category||'')}</td>
+    <tr style="${pl.done ? 'opacity:.55;' : ''}">
+      <td style="${pl.done ? 'text-decoration:line-through;' : ''}">${escapeHtml(pl.title)}</td>
       <td class="cell-amount">${fmt(pl.amount)}</td>
       <td>${escapeHtml(pl.period||'')}</td>
       <td>${escapeHtml(pl.notes||'')}</td>
+      <td style="text-align:center;">
+        <input type="checkbox" ${pl.done?'checked':''} ${state.isAdmin?'':'disabled'}
+          onchange="togglePlanDone(${i}, this.checked)" style="width:18px;height:18px;accent-color:var(--accent);cursor:${state.isAdmin?'pointer':'default'};">
+      </td>
       <td class="admin-only" style="display:${state.isAdmin?'table-cell':'none'};text-align:left;">
         <div class="row-actions">
           <button class="icon-btn danger" title="מחיקה" onclick="deletePlan(${i})">🗑</button>
@@ -931,7 +923,6 @@ document.getElementById('addPlanBtn').addEventListener('click', ()=>{
   if(!state.isAdmin) return;
   document.getElementById('plTitle').value='';
   document.getElementById('plAmount').value='';
-  document.getElementById('plCategory').value='חג / אירוע';
   document.getElementById('plPeriod').value='';
   document.getElementById('plNotes').value='';
   openModal('planModal');
@@ -942,14 +933,13 @@ document.getElementById('savePlanBtn').addEventListener('click', async ()=>{
   if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   const title = document.getElementById('plTitle').value.trim();
   const amount = parseFloat(document.getElementById('plAmount').value);
-  const category = document.getElementById('plCategory').value;
   const period = document.getElementById('plPeriod').value.trim();
   const notes = document.getElementById('plNotes').value.trim();
   if(!title || !amount){ showToast('נא למלא כותרת וסכום', true); return; }
 
   showLoader('שומר תכנון...');
   try{
-    await apiPost({ action:'addPlan', title, amount, category, period, notes, org: state.currentOrg });
+    await apiPost({ action:'addPlan', title, amount, period, notes, org: state.currentOrg });
     closeModal('planModal');
     await loadAllData();
     showToast('התכנון נשמר בהצלחה');
@@ -971,6 +961,18 @@ async function deletePlan(idx){
   }catch(err){
     console.error(err); showToast('שגיאה במחיקה', true);
   }finally{ hideLoader(); }
+}
+
+async function togglePlanDone(idx, done){
+  if(!state.isAdmin) return;
+  if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
+  const plan = getFuturePlans()[idx];
+  try{
+    await apiPost({ action:'togglePlanDone', id: plan.id, done });
+    await loadAllData();
+  }catch(err){
+    console.error(err); showToast('שגיאה בעדכון הסטטוס', true);
+  }
 }
 
 function populateStudentDropdown(){
