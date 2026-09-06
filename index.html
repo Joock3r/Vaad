@@ -961,9 +961,16 @@ async function togglePlanDone(idx, done){
   }
 }
 
-function populateStudentDropdown(){
+/** ממלאת את רשימת התלמידים לבחירה בטופס תשלום — מציגה רק מי שעדיין לא
+ *  שילם במלואו (סטטוס "שולם") עבור הוועד הפעיל כרגע, כדי שלא יהיה אפשר
+ *  בטעות לבחור ולשלם שוב עבור מישהו שכבר סגר את החוב. forceIncludeName
+ *  מאפשר לכלול גם תלמיד "שולם" באופן חריג — משמש רק בעדכון מהיר משורה
+ *  ספציפית בטבלה (openQuickPayment), כדי שלחיצה על 💳 עבור אותו תלמיד
+ *  תמיד תבחר אותו נכון גם אם הוא כבר מסומן כשולם. */
+function populateStudentDropdown(forceIncludeName){
   const sel = document.getElementById('payStudent');
-  sel.innerHTML = getStudents().map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
+  const list = getStudents().filter(s => studentStatus(s) !== 'paid' || s.name === forceIncludeName);
+  sel.innerHTML = list.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
 }
 
 /** ממלאת אוטומטית את סכום התשלום לפי היעד (target/targetTzohoron, בהתאם
@@ -983,7 +990,7 @@ function openQuickPayment(idx){
   document.getElementById('payDate').value = new Date().toISOString().slice(0,10);
   document.getElementById('payMethod').value='PayBox';
   document.getElementById('payNotes').value='';
-  populateStudentDropdown();
+  populateStudentDropdown(s.name);
   document.getElementById('payStudent').value = s.name;
   autofillPaymentAmount();
   openModal('paymentModal');
@@ -1066,9 +1073,18 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
   // dashboard) — so the PDF contains exactly what was asked for: the
   // balance, total expenses, and the detailed expense list for whichever
   // committee tab is currently active — nothing else from the app UI.
+  //
+  // Rendered as a real, briefly-visible full-screen overlay rather than
+  // hidden far off-screen: browsers (especially on mobile) often skip
+  // painting content placed at extreme off-screen coordinates, which is
+  // exactly what made earlier exports come back completely blank — html2canvas
+  // can only capture pixels the browser actually painted.
+  showLoader('מייצא דוח...');
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;top:-99999px;right:-99999px;width:780px;padding:28px;background:#fff;color:#0f172a;font-family:Heebo,sans-serif;direction:rtl;';
-  wrap.innerHTML = `
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#fff;overflow:auto;';
+  const inner = document.createElement('div');
+  inner.style.cssText = 'max-width:780px;margin:0 auto;padding:28px;background:#fff;color:#0f172a;font-family:Heebo,sans-serif;direction:rtl;';
+  inner.innerHTML = `
     <h1 style="font-size:20px;margin:0 0 4px;">דוח ועד ${orgLabel} — ועד כיתה א'2</h1>
     <div style="font-size:12px;color:#64748b;margin-bottom:22px;">הופק בתאריך ${new Date().toLocaleDateString('he-IL')}</div>
     <div style="display:flex;gap:12px;margin-bottom:26px;">
@@ -1106,6 +1122,7 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
       </tr></tfoot>
     </table>` : `<div style="text-align:center;color:#94a3b8;padding:24px;font-size:13px;">אין הוצאות רשומות</div>`}
   `;
+  wrap.appendChild(inner);
   document.body.appendChild(wrap);
 
   const opt = {
@@ -1115,8 +1132,14 @@ document.getElementById('exportPdfBtn').addEventListener('click', ()=>{
     html2canvas: { scale: 2 },
     jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
   };
-  html2pdf().set(opt).from(wrap).save().then(()=>{
+  html2pdf().set(opt).from(inner).save().then(()=>{
     document.body.removeChild(wrap);
+    hideLoader();
+  }).catch((err)=>{
+    console.error(err);
+    document.body.removeChild(wrap);
+    hideLoader();
+    showToast('שגיאה בייצוא הדוח', true);
   });
 });
 
