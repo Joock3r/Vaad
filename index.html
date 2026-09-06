@@ -111,6 +111,27 @@
   .kpi-income .kpi-value{color:var(--income);}
   .kpi-expense .kpi-value{color:var(--expense);}
 
+  /* ---------- Class (school-level) Tabs ---------- */
+  .class-tabs{
+    display:flex;gap:6px;margin:16px 0 8px;flex-wrap:wrap;
+  }
+  .class-tab-btn{
+    flex:1;min-width:56px;border:2px solid var(--border);background:var(--card);border-radius:12px;
+    padding:9px 6px;font-size:13px;font-weight:800;color:var(--text-muted);
+  }
+  .class-tab-btn.active{
+    border-color:#0891b2;background:#ecfeff;color:#0891b2;
+  }
+  .locked-class-label{
+    margin:16px 0 8px;padding:9px 14px;border-radius:12px;background:#ecfeff;color:#0891b2;
+    font-weight:800;font-size:13px;text-align:center;border:2px solid #0891b2;
+  }
+  @media (max-width:480px){
+    .class-tabs{margin:10px 0 6px;gap:4px;}
+    .class-tab-btn{padding:7px 4px;font-size:11px;border-radius:9px;}
+    .locked-class-label{margin:10px 0 6px;padding:7px 10px;font-size:12px;}
+  }
+
   /* ---------- Org (top-level) Tabs ---------- */
   .org-tabs{
     display:flex;gap:8px;margin:16px 0;
@@ -244,7 +265,7 @@
   <div class="header-inner">
     <div class="header-top-row">
       <div class="brand">
-        <h1>ועד כיתה א'2</h1>
+        <h1 id="pageTitle">ועד כיתה</h1>
         <span class="user-chip" id="userChip">טוען משתמש...</span>
       </div>
       <div class="header-auth">
@@ -262,6 +283,15 @@
 </header>
 
 <div class="container">
+
+  <nav class="class-tabs" id="classTabs">
+    <button class="class-tab-btn" data-class="a1">א׳1</button>
+    <button class="class-tab-btn active" data-class="a2">א׳2</button>
+    <button class="class-tab-btn" data-class="b1">ב׳1</button>
+    <button class="class-tab-btn" data-class="b2">ב׳2</button>
+    <button class="class-tab-btn" data-class="b3">ב׳3</button>
+  </nav>
+  <div class="locked-class-label" id="lockedClassLabel" style="display:none;"></div>
 
   <nav class="org-tabs" id="orgTabs">
     <button class="org-tab-btn active" data-org="kita">🏫 ועד כיתה</button>
@@ -446,10 +476,41 @@
 /* ============================================================
    CONFIG — edit these constants for your deployment
    ============================================================ */
-const ADMIN_EMAILS = [
-  "tamir.tsricker@gmail.com",
-  "nut.cr4ck3r.pro@gmail.com"
-];
+// שיוך כיתות: כל כיתה מזוהה במזהה קצר (a1/a2/b1/b2/b3) עם תווית עברית
+// להצגה. אם תרצה להוסיף/להסיר כיתות בעתיד, זה המקום היחיד שצריך לעדכן
+// כאן ב-HTML — אבל CLASS_ADMINS למטה חייב להתעדכן גם ב-Code.gs תמיד יחד.
+const CLASS_LABELS = { a1:"א׳1", a2:"א׳2", b1:"ב׳1", b2:"ב׳2", b3:"ב׳3" };
+
+// בדיוק 2 כתובות מייל לכל כיתה. יש לעדכן רשימה זו כך שתהיה זהה לחלוטין
+// (אותם מפתחות, אותן כתובות) לרשימה במשתנה CLASS_ADMINS בקובץ Code.gs —
+// אחרת ההרשאה בפועל (הנבדקת תמיד בשרת) לא תתאים למה שהאתר מציג ללקוח.
+const CLASS_ADMINS = {
+  a1: ["admin1_a1@example.com", "admin2_a1@example.com"],
+  a2: ["tamir.tsricker@gmail.com"],
+  b1: ["admin1_b1@example.com", "admin2_b1@example.com"],
+  b2: ["admin1_b2@example.com", "admin2_b2@example.com"],
+  b3: ["admin1_b3@example.com", "admin2_b3@example.com"],
+};
+/** מחזירה את מזהה הכיתה שכתובת מייל נתונה מנהלת, או null אם היא לא
+ *  מנהלת אף כיתה. שימוש רק להחלטות תצוגה בצד הלקוח — ההרשאה האמיתית
+ *  תמיד נבדקת מחדש בשרת (ראה CLASS_ADMINS גם ב-Code.gs). */
+function adminClassFor(email){
+  const e = String(email||'').trim().toLowerCase();
+  for (const [cls, emails] of Object.entries(CLASS_ADMINS)){
+    if (emails.map(x=>x.toLowerCase()).includes(e)) return cls;
+  }
+  return null;
+}
+
+// "מנהל-על" — במקום להיות נעול לכיתה אחת, מקבל הרשאות עריכה מלאות על כל
+// כיתה שהוא בוחר לצפות בה כרגע (בורר הכיתות נשאר פתוח ולא ננעל). יש
+// לעדכן רשימה זהה בדיוק גם ב-SUPER_ADMINS בקובץ Code.gs.
+const SUPER_ADMINS = ["nut.cr4ck3r.pro@gmail.com"];
+function isSuperAdmin(email){
+  const e = String(email||'').trim().toLowerCase();
+  return SUPER_ADMINS.map(x=>x.toLowerCase()).includes(e);
+}
+
 const API_URL = "https://script.google.com/macros/s/AKfycbzEmOxdZNWOFBLp027tf35gLkqFyNvkGCUxvm11F2Ie33B-XCRyurCJueUV2Gtl4v0m/exec";
 
 // Create this in Google Cloud Console > APIs & Services > Credentials
@@ -467,6 +528,8 @@ let state = {
   userEmail: null,
   idToken: null,
   currentOrg: 'kita', // 'kita' (ועד כיתה) | 'tzohoron' (ועד צהרון) — top-level selector
+  currentClass: 'a2', // a1/a2/b1/b2/b3 — school-level selector; a2 is the default since that's where all pre-existing data lives
+  lockedClass: false, // true once a logged-in admin's own class is resolved — they can't switch away from it
   students: [],
   expenses: [],
   payments: [],
@@ -474,12 +537,13 @@ let state = {
   studentFilter: 'all'
 };
 
-/** Rows are tagged with an `org` field ('kita' / 'tzohoron'). Rows written
- *  before this feature existed have no org field at all — those are treated
- *  as 'kita' by default so nothing existing silently disappears. All render
- *  functions and index-based actions (delete, quick-payment) go through
- *  these getters instead of touching state.<array> directly, so the indices
- *  used by onclick handlers always line up with what's currently on screen.
+/** Rows are tagged with `org` and `class` fields. Rows written before these
+ *  features existed have neither — those default to 'kita' / 'a2' so nothing
+ *  existing silently disappears (a2 is where all the original single-class
+ *  data lived). All render functions and index-based actions (delete,
+ *  quick-payment) go through these getters instead of touching
+ *  state.<array> directly, so the indices used by onclick handlers always
+ *  line up with what's currently on screen.
  *
  *  Students are special: every child is fundamentally a member of the class
  *  (ועד כיתה), so the "kita" view always shows every student regardless of
@@ -489,13 +553,14 @@ let state = {
  *  server-side. */
 function getStudents(){
   return state.students.filter(s => {
+    if ((s.class||'a2') !== state.currentClass) return false;
     if (state.currentOrg === 'kita') return true;
     return (s.org||'kita') === 'tzohoron';
   });
 }
-function getExpenses(){ return state.expenses.filter(e => (e.org||'kita') === state.currentOrg); }
-function getPayments(){ return state.payments.filter(p => (p.org||'kita') === state.currentOrg); }
-function getFuturePlans(){ return state.futurePlans.filter(p => (p.org||'kita') === state.currentOrg); }
+function getExpenses(){ return state.expenses.filter(e => (e.class||'a2') === state.currentClass && (e.org||'kita') === state.currentOrg); }
+function getPayments(){ return state.payments.filter(p => (p.class||'a2') === state.currentClass && (p.org||'kita') === state.currentOrg); }
+function getFuturePlans(){ return state.futurePlans.filter(p => (p.class||'a2') === state.currentClass && (p.org||'kita') === state.currentOrg); }
 
 /* ============================================================
    AUTH — Google Sign-In (Google Identity Services), matching the
@@ -571,13 +636,26 @@ function applyAuthState(){
   }
   // isAdmin here only drives which UI controls are OFFERED — it is never
   // trusted for the actual write. Code.gs independently re-verifies the
-  // idToken and re-checks ADMIN_EMAILS itself before allowing any change.
-  state.isAdmin = !!(state.userEmail && ADMIN_EMAILS.map(e=>e.toLowerCase()).includes(state.userEmail));
+  // idToken and re-checks CLASS_ADMINS/SUPER_ADMINS itself before allowing
+  // any change, and always uses ITS OWN resolved class for the write —
+  // never whatever class the client claims — so a class admin can never
+  // write outside their own class even by tampering with the request.
+  const myClass = state.userEmail ? adminClassFor(state.userEmail) : null;
+  const superAdmin = state.userEmail ? isSuperAdmin(state.userEmail) : false;
+  state.isAdmin = !!myClass || superAdmin;
+  if (myClass){
+    state.currentClass = myClass;
+    state.lockedClass = true;
+  } else {
+    // Super admins are NOT locked — they keep switching freely between
+    // classes via the class selector, with full edit rights everywhere.
+    state.lockedClass = false;
+  }
 
   const chip = document.getElementById('userChip');
   const name = localStorage.getItem('user_name');
   const badgeHtml = state.isAdmin
-    ? `<span class="badge admin">מנהל</span>`
+    ? `<span class="badge admin">מנהל${superAdmin ? ' (כל הכיתות)' : ' — ' + CLASS_LABELS[myClass]}</span>`
     : `<span class="badge view">צפייה בלבד</span>`;
   chip.innerHTML = state.userEmail ? ((name||state.userEmail) + ' ' + badgeHtml) : 'לא מחובר';
 
@@ -590,6 +668,17 @@ function applyAuthState(){
   document.getElementById('logoutBtn').style.display = state.userEmail ? 'inline-flex' : 'none';
   document.getElementById('exportPdfBtn').style.display = state.userEmail ? 'inline-flex' : 'none';
   if (!state.userEmail) renderGoogleButton();
+
+  // Locked-in class admins get a static label instead of the switchable
+  // class selector — they only ever see/manage their own class.
+  document.getElementById('classTabs').style.display = state.lockedClass ? 'none' : 'flex';
+  const lockedLabel = document.getElementById('lockedClassLabel');
+  lockedLabel.style.display = state.lockedClass ? 'block' : 'none';
+  lockedLabel.textContent = state.lockedClass ? `🔒 מחובר כמנהל כיתה ${CLASS_LABELS[state.currentClass]}` : '';
+  document.querySelectorAll('.class-tab-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.class === state.currentClass);
+  });
+  document.getElementById('pageTitle').textContent = 'ועד כיתה ' + CLASS_LABELS[state.currentClass];
 }
 
 /** Bails out of a write before any optimistic UI change if there's no
@@ -811,6 +900,21 @@ function escapeHtml(str){
 }
 
 /* ============================================================
+   CLASS TABS (school-level: א׳1 / א׳2 / ב׳1 / ב׳2 / ב׳3)
+   ============================================================ */
+document.querySelectorAll('.class-tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    if(state.lockedClass) return; // a logged-in class admin can't switch away from their own class
+    if(btn.dataset.class === state.currentClass) return;
+    document.querySelectorAll('.class-tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    state.currentClass = btn.dataset.class;
+    document.getElementById('pageTitle').textContent = 'ועד כיתה ' + CLASS_LABELS[state.currentClass];
+    renderAll();
+  });
+});
+
+/* ============================================================
    ORG TABS (top-level: ועד כיתה / ועד צהרון)
    ============================================================ */
 document.querySelectorAll('.org-tab-btn').forEach(btn=>{
@@ -925,7 +1029,7 @@ document.getElementById('savePlanBtn').addEventListener('click', async ()=>{
 
   showLoader('שומר תכנון...');
   try{
-    await apiPost({ action:'addPlan', title, amount, period, notes, org: state.currentOrg });
+    await apiPost({ action:'addPlan', title, amount, period, notes, org: state.currentOrg, class: state.currentClass });
     closeModal('planModal');
     await loadAllData();
     showToast('התכנון נשמר בהצלחה');
@@ -941,7 +1045,7 @@ async function deletePlan(idx){
   const plan = getFuturePlans()[idx];
   showLoader('מוחק...');
   try{
-    await apiPost({ action:'deletePlan', id: plan.id });
+    await apiPost({ action:'deletePlan', id: plan.id, class: state.currentClass });
     await loadAllData();
     showToast('התכנון נמחק');
   }catch(err){
@@ -954,7 +1058,7 @@ async function togglePlanDone(idx, done){
   if(!requireFreshSession()){ showToast('החיבור שלך פג — יש להתחבר מחדש', true); renderAll(); return; }
   const plan = getFuturePlans()[idx];
   try{
-    await apiPost({ action:'togglePlanDone', id: plan.id, done });
+    await apiPost({ action:'togglePlanDone', id: plan.id, done, class: state.currentClass });
     await loadAllData();
   }catch(err){
     console.error(err); showToast('שגיאה בעדכון הסטטוס', true);
@@ -1014,7 +1118,7 @@ document.getElementById('saveExpenseBtn').addEventListener('click', async ()=>{
     const receiptFile = document.getElementById('exReceipt').files[0];
     const receiptImage = receiptFile ? await fileToBase64Payload(receiptFile) : null;
     if(receiptFile) showLoader('מעלה קבלה...');
-    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy, receiptImage, org: state.currentOrg });
+    await apiPost({ action:'addExpense', email: state.userEmail, description:desc, amount, date, category, paidBy, receiptImage, org: state.currentOrg, class: state.currentClass });
     closeModal('expenseModal');
     await loadAllData();
     showToast('ההוצאה נשמרה בהצלחה');
@@ -1035,7 +1139,7 @@ document.getElementById('savePaymentBtn').addEventListener('click', async ()=>{
 
   showLoader('שומר תשלום...');
   try{
-    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, org: state.currentOrg });
+    await apiPost({ action:'addPayment', email: state.userEmail, payerName: studentName, studentName, amount, date, method, notes, org: state.currentOrg, class: state.currentClass });
     closeModal('paymentModal');
     await loadAllData();
     showToast('התשלום נשמר בהצלחה');
@@ -1051,7 +1155,7 @@ async function deleteExpense(idx){
   const exp = getExpenses()[idx];
   showLoader('מוחק...');
   try{
-    await apiPost({ action:'deleteExpense', email: state.userEmail, id: exp.id });
+    await apiPost({ action:'deleteExpense', email: state.userEmail, id: exp.id, class: state.currentClass });
     await loadAllData();
     showToast('ההוצאה נמחקה');
   }catch(err){
